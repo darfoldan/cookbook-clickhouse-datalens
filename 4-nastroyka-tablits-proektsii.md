@@ -101,7 +101,7 @@ CPU, уровни агрегации (LOD) реализуются через п�
 проекций имеет особенности:
 
 - Настройка `deduplicate_merge_projection_mode` определяет поведение
-  проекций при мержах на ReplacingMergeTree, CollapsingMergeTree,
+  проекций при слияниях на ReplacingMergeTree, CollapsingMergeTree,
   VersionedCollapsingMergeTree и при `OPTIMIZE DEDUPLICATE`. Значения:
   `throw` (по умолчанию), `drop`, `rebuild`, `ignore`.
 - В режиме по умолчанию добавление проекции на таком движке отклоняется с
@@ -121,7 +121,7 @@ CPU, уровни агрегации (LOD) реализуются через п�
 ## Практика: четыре проекции
 
 Материализация не ретроактивна: добавление проекции действует только на новые
-вставки, для существующих данных нужен `MATERIALIZE PROJECTION` (тяжелая
+вставки, для существующих данных требуется `MATERIALIZE PROJECTION` (тяжелая
 операция, прогресс — в `system.mutations`).
 
 ```sql
@@ -302,14 +302,14 @@ LIMIT 100
 
 > <sub>В выводе EXPLAIN: ReadFromMergeTree (prj_order_by_risk)</sub>
 
-Проекции-индексы (projection index) хранят только ключ сортировки и виртуальную колонку _part_offset, по которой строки читаются из базовой таблицы. В примере ниже используется компактный синтаксис INDEX ... TYPE basic
+Проекции-индексы (projection index) хранят только ключ сортировки и виртуальную колонку _part_offset, по которой строки читаются из базовой таблицы. В примере ниже используется компактный синтаксис `INDEX ... TYPE basic`.
 
 ```sql
 -- ------------------------------------------------------------
 -- Проекция 4: lookup по transaction_id (точечный поиск)
 -- Ускоряет: WHERE transaction_id = ?
 -- Внутренний движок: projection index — хранит только _part_offset
--- ПРЕИМУЩЕСТВО: минимальное потребление дискового пространства
+-- Преимущество: минимальное потребление дискового пространства
 -- может быть использован при ORDER BY (toDate(created_at), transaction_id)
 -- при наличии корреляции между created_at и transaction_id
 -- ------------------------------------------------------------
@@ -319,7 +319,7 @@ ALTER TABLE financial_transactions
 ALTER TABLE financial_transactions
     MATERIALIZE PROJECTION idx_by_transaction_id;
 
--- Пример запроса использующего проекцию
+-- Пример запроса, использующего проекцию
 -- подставьте существующее значение transaction_id (диапазон 1..50 000 000)
 SELECT
     transaction_id,
@@ -335,15 +335,15 @@ WHERE transaction_id = 12345678;
 
 ```sql
 -- ВАЖНО: Для данного распределения данных projection index на _part_offset не является подходящим инструментом.
--- Механизм эффективен когда данные естественно кластеризованы по индексируемой колонке внутри партов — чего
+-- Механизм эффективен, когда данные естественно кластеризованы по индексируемой колонке внутри партов, чего
 -- в данном случае нет из-за случайной генерации. Отличный пример того, что работу проекций надо проверять.
 
--- Можно заставить использовать именно idx_by_transaction_id явно
--- Например расширить саму проекцию нужными колонками, а не оставлять
+-- Можно заставить использовать именно idx_by_transaction_id явно.
+-- Например, расширить саму проекцию нужными колонками, а не оставлять
 -- только ключ. Компактный синтаксис `INDEX ... TYPE basic` дает только
--- ключ + _part_offset, но обычным ADD PROJECTION можно явно перечислить
--- любой набор колонок (не обязательно SELECT * целиком):
--- сначала удалим не рабочую проекцию, она занимает место
+-- ключ + _part_offset, но с помощью ADD PROJECTION можно явно перечислить
+-- любой набор колонок (необязательно SELECT * целиком):
+-- сначала удалить нерабочую проекцию, она занимает место.
 ALTER TABLE financial_transactions DROP PROJECTION idx_by_transaction_id;
 ALTER TABLE financial_transactions
 ADD PROJECTION idx_by_transaction_id
@@ -362,11 +362,11 @@ WHERE transaction_id = 12345678;
 
 > <sub>1 row in set. Elapsed: 0.012 sec. Processed 303.10 thousand rows, 2.46 MB (25.16 million rows/s., 204.34 MB/s.)<br>Peak memory usage: 1.49 MiB.</sub>
 
-Планировщик выбрал idx_by_transaction_id
+Планировщик выбрал `idx_by_transaction_id`.
 
-### Практика: проверка использования
+## Практика: проверка использования
 
-Проекции занимают место на диске и расходуют ресурсы при мержах. Не держите те,
+Проекции занимают место на диске и расходуют ресурсы при слияниях. Не храните те,
 что не используются.
 
 ```sql
@@ -374,7 +374,7 @@ WHERE transaction_id = 12345678;
 -- 5. ПРОВЕРКА РАБОТЫ ПРОЕКЦИЙ
 -- ============================================================
 
--- Метод 1: EXPLAIN — смотрим ReadFromMergeTree (имя проекции или имя таблицы)
+-- Метод 1: EXPLAIN — посмотреть ReadFromMergeTree (имя проекции или имя таблицы)
 EXPLAIN indexes = 1
 SELECT
     transaction_id,
@@ -392,8 +392,8 @@ LIMIT 100;
 
 ```sql
 -- Метод 2: FORMAT Null + force_optimize_projection_name
--- Если проекция НЕ используется — запрос упадет с ошибкой
--- Проверяем prj_order_by_risk
+-- Если проекция НЕ используется, запрос завершится с ошибкой
+-- Проверить prj_order_by_risk
 SELECT
     transaction_id,
     account_id,
@@ -415,8 +415,8 @@ SETTINGS force_optimize_projection_name = 'prj_order_by_risk';
 > <sub>100 rows in set. Elapsed: 0.057 sec. Processed 5.63 million rows, 94.71 MB (98.77 million rows/s., 1.66 GB/s.)<br>Peak memory usage: 15.29 MiB.</sub>
 
 ```sql
--- Проверяем prj_agg_by_category_country
--- Обращаемся к базовым колонкам (как в разделе «Практика: четыре проекции») — ClickHouse сам сопоставит
+-- Проверить prj_agg_by_category_country
+-- Обратиться к базовым колонкам (как в разделе «Практика: четыре проекции») — ClickHouse сама сопоставит
 -- агрегаты с проекцией
 SELECT
     merchant_category,
@@ -431,7 +431,7 @@ FORMAT Null
 SETTINGS force_optimize_projection_name = 'prj_agg_by_category_country';
 ```
 
-Если проекция не используется — получим ошибку вида:
+Если проекция не используется, возникнет ошибка вида:
 
 > <sub>Exception: Projection prj_agg_by_category_country is specified in setting force_optimize_projection_name, but it is not used.</sub>
 
@@ -453,7 +453,6 @@ LIMIT 10;
 
 > <sub>10 rows in set. Elapsed: 0.023 sec. Processed 271.41 thousand rows, 3.78 MB (11.80 million rows/s., 164.38 MB/s.)<br>Peak memory usage: 10.14 MiB.</sub>
 
-Колонка projections в выводе явно называет использованную проекцию,
-например `<база>.financial_transactions.prj_agg_by_category_country` —
-это самый прямой способ убедиться в выборе оптимизатора постфактум.
+Колонка `projections` в выводе явно называет использованную проекцию,
+например: `<база>.financial_transactions.prj_agg_by_category_country`. Это прямой способ увидеть выбор оптимизатора постфактум.
 
