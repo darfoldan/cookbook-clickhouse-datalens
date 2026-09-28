@@ -26,6 +26,8 @@
 
 Подробнее о том, в каких случаях добавлять индексы пропуска данных, читайте в [документации ClickHouse](https://clickhouse.com/docs/clickstack/managing/performance-tuning#when-to-add-skip-indexes).
 
+Создайте индекс и проверьте его работу:
+
 ```sql
 -- transaction_id — монотонно возрастает, minmax очень эффективен
 -- Особенно полезен для запросов вида WHERE transaction_id BETWEEN X AND Y
