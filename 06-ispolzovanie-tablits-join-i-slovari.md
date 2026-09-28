@@ -1,18 +1,13 @@
-## Использование таблиц - JOIN и словари
+## Использование таблиц. JOIN и словари
 
-Не все данные, необходимые для аналитики, обязательно хранятся в основной широкой таблице.
+Не все данные, необходимые для аналитики, обязательно хранятся в основной широкой таблице. В этом разделе вы узнаете, как обогащать ее справочными данными с помощью `JOIN` и словарей.
 
-В этом разделе рассмотрим, как обогащать ее справочными данными с помощью `JOIN` и словарей.
+ClickHouse® постоянно повышает производительность операций `JOIN`. Бытовавшее ранее мнение, что эта система не для них, уже неактуально. Чаще
+всего критичное падение производительности происходит из-за грубых ошибок в структуре соединений и из-за непропорциональных ресурсам объемов объединяемых данных.
 
-ClickHouse® постоянно развивается в направлении повышения производительности JOIN,
-и бытовавшее ранее мнение, что эта система не для них, давно неактуально. Чаще
-всего критичное падение производительности происходит из-за грубых ошибок в
-структуре соединений и из-за непропорциональных ресурсам объемов объединяемых
-данных.
+### Справочник и внешний ключ
 
-### Справочник и «внешний ключ»
-
-Типовой сценарий - дообогащение данных семантикой используется и на широких таблицах.
+Типовой сценарий — дообогащение данных семантикой — используется и на широких таблицах.
 
 ```sql
 -- Небольшая таблица: category_id → семантика
@@ -54,7 +49,7 @@ INSERT INTO merchant_category_dict_source VALUES
 ```
 
 ```sql
--- Добавляем "внешний ключ" в основную таблицу
+-- Добавьте внешний ключ в основную таблицу
 -- Колонка с маппингом merchant_category → category_id
 ALTER TABLE financial_transactions
     ADD COLUMN category_id UInt32 DEFAULT
@@ -67,11 +62,11 @@ ALTER TABLE financial_transactions
             merchant_category
         ));
 
--- Материализуем для существующих строк
+-- Материализуйте для существующих строк
 ALTER TABLE financial_transactions
     MATERIALIZE COLUMN category_id;
 
--- Проверяем что маппинг корректный
+-- Проверьте, что маппинг корректный
 SELECT
     merchant_category,
     category_id,
@@ -95,10 +90,10 @@ ORDER BY category_id;
 -- лежат рядом в небольшом числе гранул.
 --
 -- Bloom filter в такой ситуации максимально эффективен: он быстро
--- отсекает гранулы где нужного category_id заведомо нет.
+-- отсекает гранулы, в которых нужного category_id заведомо нет.
 --
--- Если бы category_id был случайным (без корреляции с ORDER BY) —
--- значения были бы размазаны по всем гранулам и bloom filter
+-- Если бы category_id был случайным (без корреляции с ORDER BY), 
+-- значения были бы распределены по всем гранулам и bloom filter
 -- почти не давал бы выигрыша.
 ALTER TABLE financial_transactions
     ADD INDEX category_id_bf category_id
@@ -107,7 +102,7 @@ ALTER TABLE financial_transactions
 ALTER TABLE financial_transactions
     MATERIALIZE INDEX category_id_bf;
 
--- Проверяем что индекс материализован
+-- Проверьте, что индекс материализован
 SELECT
     name,
     formatReadableSize(data_compressed_bytes)   AS compressed,
@@ -135,29 +130,30 @@ SOURCE(CLICKHOUSE(
     TABLE 'merchant_category_dict_source'
     DB currentDatabase()
 ))
-LAYOUT(FLAT())          -- FLAT — самый быстрый layout, ключи UInt64, таблица маленькая
+LAYOUT(FLAT())          -- FLAT — самый быстрый LAYOUT, ключи UInt64, таблица маленькая
 LIFETIME(MIN 300 MAX 900);
 ```
 
 ### JOIN против dictGet
 
+Рассмотрите два варианта использования и сравните количество обработанных строк.
+
+Вариант A: обычный JOIN
+ClickHouse строит хеш-таблицу из `merchant_category_dict_source`,
+затем проверяет каждую строку `financial_transactions`.
+Фильтр по `risk_tier` применяется ПОСЛЕ `JOIN`.
+ClickHouse автоматически строит runtime bloom filter
+из правой части `JOIN` (`merchant_category_dict_source`) и передает его
+в сканирование левой части (`financial_transactions`) еще до `JOIN`.
+Это позволяет отсечь строки `financial_transactions`, у которых `category_id`
+заведомо не встречается в правой части, то есть частично имитирует
+поведение, которое раньше было доступно только через dictGet.
+Тем не менее, dictGet остается быстрее: словарь уже в памяти,
+хеш-таблица не строится заново при каждом запросе, и статический
+bloom filter на `category_id` работает на уровне гранул до чтения данных.
+
 ```sql
--- ============================================================
 -- Вариант A: обычный JOIN
--- ClickHouse строит хэш-таблицу из merchant_category_dict_source,
--- затем проверяет каждую строку financial_transactions.
--- Фильтр по risk_tier применяется ПОСЛЕ джойна.
---
--- ClickHouse автоматически строит runtime bloom filter
--- из правой части JOIN (merchant_category_dict_source) и передает его
--- в сканирование левой части (financial_transactions) еще до джойна.
--- Это позволяет отсечь строки financial_transactions у которых category_id
--- заведомо не встречается в правой части — то есть частично имитирует
--- поведение которое раньше было доступно только через dictGet.
--- Тем не менее dictGet остается быстрее: словарь уже в памяти,
--- хэш-таблица не строится заново при каждом запросе, и статический
--- bloom filter на category_id работает на уровне гранул до чтения данных.
--- ============================================================
 SELECT
     ft.merchant_category AS merchant_category,
     ft.country           AS country,
@@ -174,15 +170,14 @@ ORDER BY total_amount DESC;
 
 > <sub>6 rows in set. Elapsed: 1.256 sec. Processed 50.00 million rows, 650.02 MB (39.81 million rows/s., 517.53 MB/s.)<br>Peak memory usage: 55.57 MiB.</sub>
 
+Вариант B: dictGet — Direct Join
+ClickHouse делает lookup прямо в памяти для каждой строки,
+пережившей фильтр по `PRIMARY KEY`.
+Фильтр по `risk_tier` вычисляется inline через dictGet,
+bloom filter на `category_id` отсекает ненужные гранулы.
+
 ```sql
--- ============================================================
 -- Вариант B: dictGet — Direct Join
--- ClickHouse делает lookup прямо в памяти для каждой строки
--- пережившей фильтр по PRIMARY KEY.
--- Фильтр по risk_tier вычисляется inline через dictGet,
--- bloom filter на category_id отсекает ненужные гранулы.
--- Сравните количество обработанных строк
--- ============================================================
 SELECT
     merchant_category,
     country,
@@ -198,21 +193,21 @@ ORDER BY total_amount DESC;
 
 > <sub>6 rows in set. Elapsed: 0.247 sec. Processed 11.69 million rows, 198.68 MB (47.31 million rows/s., 804.36 MB/s.)<br>Peak memory usage: 51.05 MiB.</sub>
 
-Сравнение с вариантом A (JOIN): 11.69 млн строк против 50.00 млн — bloom filter
-на category_id отсекает лишние гранулы еще до lookup, запрос быстрее
-примерно в 5 раз (0.247 сек против 1.256 сек).
+Сравнение с вариантом A (обычный `JOIN`): 11,69 млн строк против 50,00 млн — bloom filter
+на `category_id` отсекает лишние гранулы еще до lookup. Запрос быстрее
+примерно в 5 раз: 0,247 с против 1,256 с.
 
-Почему `dictGet` быстрее JOIN в этом сценарии:
+Почему `dictGet` быстрее `JOIN` в этом сценарии:
 
 | | JOIN | dictGet |
 |---|---|---|
-| Построение хэш-таблицы | да, каждый раз | не нужно — словарь уже в RAM |
+| Построение хеш-таблицы | Да, каждый раз | Не нужно — словарь уже в RAM |
 | Алгоритм | Hash Join | Direct Join |
-| Фильтр по `risk_tier` | после джойна | inline, строка за строкой |
-| Bloom filter на `category_id` | не используется | отсекает гранулы до lookup |
-| Память | хэш-таблица правой части | только словарь (уже загружен) |
+| Фильтр по `risk_tier` | после JOIN | Inline, строка за строкой |
+| Bloom filter на `category_id` | Не используется | Отсекает гранулы до lookup |
+| Память | Хеш-таблица правой части | Только словарь (уже загружен) |
 
-Документация:
+Подробнее о том, как ускорить работу с помощью словарей, читайте в документации ClickHouse®.
 <https://clickhouse.com/docs/concepts/features/dictionaries#speeding-up-joins-using-a-dictionary>
 
 ### Практика: замеры
@@ -286,8 +281,8 @@ SETTINGS use_query_condition_cache = 0;
 > <sub>6 rows in set. Elapsed: 1.246 sec. Processed 50.00 million rows, 600.02 MB (40.13 million rows/s., 481.55 MB/s.)<br>Peak memory usage: 41.28 MiB.</sub>
 
 ```sql
--- (кэши не сбрасывались перед замером — SYSTEM DROP CACHE недоступен
--- read-only пользователю и является инстанс-wide операцией)
+-- Кеши не сбрасывались перед замером — SYSTEM DROP CACHE недоступен
+-- read-only-пользователю и является операцией инстанс-wide 
 
 -- dictGet с bloom filter
 SELECT
@@ -322,9 +317,8 @@ SETTINGS use_query_condition_cache = 0, use_skip_indexes = 0;
 
 > <sub>6 rows in set. Elapsed: 1.153 sec. Processed 50.00 million rows, 600.02 MB (43.37 million rows/s., 520.40 MB/s.)<br>Peak memory usage: 4.86 MiB.</sub>
 
-Без skip-индексов dictGet читает все 50 млн строк (как и JOIN), а не 11.69 млн —
-разница во времени против предыдущего замера (0.219 сек) подтверждает вклад
-именно bloom filter на category_id, а не самого dictGet.
+Без индексов пропуска данных dictGet читает все 50 млн строк, как и `JOIN`, а не 11,69 млн. Разница во времени против предыдущего замера (0,219 сек) подтверждает вклад
+bloom filter на `category_id`, а не самого dictGet.
 
 ```sql
 -- Проверка через query_log
@@ -344,8 +338,13 @@ LIMIT 6;
 
 > <sub>6 rows in set. Elapsed: 0.015 sec. Processed 272.69 thousand rows, 4.25 MB (18.18 million rows/s., 283.08 MB/s.)<br>Peak memory usage: 4.94 MiB.</sub>
 
-В колонке projections видно: JOIN-вариант читался через prj_order_by_risk,
-а оба dictGet-варианта — напрямую из базовой таблицы ([] в projections).
+В колонке `projections` видно: `JOIN`-вариант читался через `prj_order_by_risk`,
+а оба dictGet-варианта — напрямую из базовой таблицы ([] в `projections`).
 Наличие подходящей проекции не гарантирует ее использование именно там,
-где ожидаешь, — еще один повод для обязательной проверки из раздела «Практика: проверка использования».
+где ожидается. Это еще один повод для обязательной проверки из раздела «Практика: проверка использования» рецепта [Настройка таблиц. Проекции](ДОБАВИТЬ ССЫЛКУ).
+
+## Итоги
+
+Написать методисту
+
 
