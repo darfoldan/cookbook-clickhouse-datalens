@@ -23,7 +23,8 @@
 - `account_id` — высокая кардинальность (~1M), но значения внутри гранул будут перемешаны (последний элемент `ORDER BY`). Индекс `minmax` даст слабую селективность — диапазоны min/max в каждой грануле будут широкими и перекрывающимися.
 - `fee`, `cashback_amount`, `exchange_rate` — зависят от `amount` и `merchant_category`, корреляция с `ORDER BY` слабая. Индекс `minmax` может помочь, но эффект непредсказуем без реального тестирования.
 - `payment_method`, `status` — всего 4 значения. Индекс `minmax` будет хранить `min=1`, `max=4` почти в каждой грануле — индекс никогда ничего не отсечет.
-https://clickhouse.com/docs/clickstack/managing/performance-tuning#when-to-add-skip-indexes
+
+Подробнее о том, в каких случаях добавлять индексы пропуска данных, читайте в [документации ClickHouse](https://clickhouse.com/docs/clickstack/managing/performance-tuning#when-to-add-skip-indexes).
 
 ```sql
 -- transaction_id — монотонно возрастает, minmax очень эффективен
