@@ -113,7 +113,7 @@ WHERE table = 'financial_transactions'
 
 > <sub>1 rows in set. Elapsed: 0.004 sec. Processed 16.00 rows, 1.20 KB (4.00 thousand rows/s., 299.75 KB/s.)<br>Peak memory usage: 4.02 MiB.</sub>
 
-### Словарь — более эффективный метод присоединения семантики
+### Словарь как метод присоединения семантики
 
 ```sql
 CREATE DICTIONARY merchant_category_dict
@@ -132,21 +132,21 @@ LAYOUT(FLAT())          -- FLAT — самый быстрый LAYOUT, ключи
 LIFETIME(MIN 300 MAX 900);
 ```
 
-### JOIN против dictGet
+### `JOIN` и `dictGet`
 
 Рассмотрите два варианта использования и сравните количество обработанных строк.
 
-Вариант A: обычный JOIN
+**Вариант A:** обычный `JOIN`
 ClickHouse строит хеш-таблицу из `merchant_category_dict_source`,
 затем проверяет каждую строку `financial_transactions`.
-Фильтр по `risk_tier` применяется ПОСЛЕ `JOIN`.
+Фильтр по `risk_tier` применяется после `JOIN`.
 ClickHouse автоматически строит runtime bloom filter
 из правой части `JOIN` (`merchant_category_dict_source`) и передает его
 в сканирование левой части (`financial_transactions`) еще до `JOIN`.
 Это позволяет отсечь строки `financial_transactions`, у которых `category_id`
 заведомо не встречается в правой части, то есть частично имитирует
-поведение, которое раньше было доступно только через dictGet.
-Тем не менее, dictGet остается быстрее: словарь уже в памяти,
+поведение, которое раньше было доступно только через `dictGet`.
+Тем не менее, `dictGet` остается быстрее: словарь уже в памяти,
 хеш-таблица не строится заново при каждом запросе, и статический
 bloom filter на `category_id` работает на уровне гранул до чтения данных.
 
@@ -168,10 +168,10 @@ ORDER BY total_amount DESC;
 
 > <sub>6 rows in set. Elapsed: 1.256 sec. Processed 50.00 million rows, 650.02 MB (39.81 million rows/s., 517.53 MB/s.)<br>Peak memory usage: 55.57 MiB.</sub>
 
-Вариант B: dictGet — Direct Join
+**Вариант B:** `dictGet` — `Direct Join`
 ClickHouse делает lookup прямо в памяти для каждой строки,
 пережившей фильтр по `PRIMARY KEY`.
-Фильтр по `risk_tier` вычисляется inline через dictGet,
+Фильтр по `risk_tier` вычисляется inline через `dictGet`,
 bloom filter на `category_id` отсекает ненужные гранулы.
 
 ```sql
@@ -200,8 +200,8 @@ ORDER BY total_amount DESC;
 | | JOIN | dictGet |
 |---|---|---|
 | Построение хеш-таблицы | Да, каждый раз | Не нужно — словарь уже в RAM |
-| Алгоритм | Hash Join | Direct Join |
-| Фильтр по `risk_tier` | после JOIN | Inline, строка за строкой |
+| Алгоритм | `Hash Join` | `Direct Join` |
+| Фильтр по `risk_tier` | после `JOIN` | Inline, строка за строкой |
 | Bloom filter на `category_id` | Не используется | Отсекает гранулы до lookup |
 | Память | Хеш-таблица правой части | Только словарь (уже загружен) |
 
@@ -314,8 +314,8 @@ SETTINGS use_query_condition_cache = 0, use_skip_indexes = 0;
 
 > <sub>6 rows in set. Elapsed: 1.153 sec. Processed 50.00 million rows, 600.02 MB (43.37 million rows/s., 520.40 MB/s.)<br>Peak memory usage: 4.86 MiB.</sub>
 
-Без индексов пропуска данных dictGet читает все 50 млн строк, как и `JOIN`, а не 11,69 млн. Разница во времени против предыдущего замера (0,219 сек) подтверждает вклад
-bloom filter на `category_id`, а не самого dictGet.
+Без индексов пропуска данных `dictGet` читает все 50 млн строк, как и `JOIN`, а не 11,69 млн. Разница во времени против предыдущего замера (0,219 сек) подтверждает вклад
+bloom filter на `category_id`, а не самого `dictGet`.
 
 ```sql
 -- Проверка через query_log
@@ -336,7 +336,7 @@ LIMIT 6;
 > <sub>6 rows in set. Elapsed: 0.015 sec. Processed 272.69 thousand rows, 4.25 MB (18.18 million rows/s., 283.08 MB/s.)<br>Peak memory usage: 4.94 MiB.</sub>
 
 В колонке `projections` видно: `JOIN`-вариант читался через `prj_order_by_risk`,
-а оба dictGet-варианта — напрямую из базовой таблицы ([] в `projections`).
+а оба `dictGet`-варианта — напрямую из базовой таблицы (`[]` в `projections`).
 Наличие подходящей проекции не гарантирует ее использование именно там,
 где ожидается. Это еще один повод для обязательной проверки из раздела «Практика: проверка использования» рецепта [Настройка таблиц. Проекции](ДОБАВИТЬ ССЫЛКУ).
 
