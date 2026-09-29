@@ -174,7 +174,7 @@ SELECT
         ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
     ) AS account_running_total
 FROM financial_transactions
-WHERE account_id = 282208 -- сделайте выборку для получения реальных сгенеренных значений поля для фильтра
+WHERE account_id = 282208 -- сделайте выборку для получения реальных сгенерированных значений поля для фильтра
   AND status = 'completed'
 ORDER BY transaction_date;
 ```
