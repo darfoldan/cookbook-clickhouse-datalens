@@ -78,23 +78,23 @@ ORDER BY category_id;
 
 > <sub>10 rows in set. Elapsed: 1.367 sec. Processed 50.00 million rows, 50.01 MB (36.58 million rows/s., 36.59 MB/s.)<br>Peak memory usage: 34.72 MiB.</sub>
 
+Эффективность bloom filter напрямую зависит от корреляции
+индексируемой колонки с `ORDER BY` таблицы.
+`merchant_category` — первый ключ `ORDER BY`, а `category_id` является
+ее прямым производным (маппинг 1:1). Данные физически сгруппированы
+на диске по `category_id` — все строки с `category_id = 8` (Finance)
+лежат рядом в небольшом числе гранул.
+
+Bloom filter в такой ситуации максимально эффективен: он быстро
+отсекает гранулы, в которых нужного `category_id` заведомо нет.
+
+Если бы `category_id` был случайным (без корреляции с `ORDER BY`), 
+значения были бы распределены по всем гранулам и bloom filter
+почти не давал бы выигрыша.
+
 ```sql
 -- Bloom filter на category_id
---
--- ВАЖНО: эффективность bloom filter напрямую зависит от корреляции
--- индексируемой колонки с ORDER BY таблицы.
---
--- merchant_category — первый ключ ORDER BY, а category_id является
--- ее прямым производным (маппинг 1:1). Данные физически сгруппированы
--- на диске по category_id — все строки с category_id = 8 (Finance)
--- лежат рядом в небольшом числе гранул.
---
--- Bloom filter в такой ситуации максимально эффективен: он быстро
--- отсекает гранулы, в которых нужного category_id заведомо нет.
---
--- Если бы category_id был случайным (без корреляции с ORDER BY), 
--- значения были бы распределены по всем гранулам и bloom filter
--- почти не давал бы выигрыша.
+
 ALTER TABLE financial_transactions
     ADD INDEX category_id_bf category_id
     TYPE bloom_filter(0.01) GRANULARITY 1;
