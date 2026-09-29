@@ -181,7 +181,7 @@ ORDER BY transaction_date;
 
 > <sub>57 rows in set. Elapsed: 0.064 sec. Processed 50.00 million rows, 252.42 MB (781.25 million rows/s., 3.94 GB/s.)<br>Peak memory usage: 6.13 MiB.</sub>
 
-В запросе ниже `EXPLAIN` показывает, что `PRIMARY KEY` не отсекает гранулы по `account_id` —
+`EXPLAIN` показывает, что `PRIMARY KEY` не отсекает гранулы по `account_id` —
 он стоит четвертым в `ORDER BY` после `merchant_category`, `country` и `month`.
 Данные физически не сгруппированы по `account_id`, поэтому ClickHouse®
 вынуждена читать большую часть таблицы. Оконная функция при этом все равно вычисляется только для строк
