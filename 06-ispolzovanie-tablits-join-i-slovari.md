@@ -83,9 +83,7 @@ ORDER BY category_id;
 `merchant_category` — первый ключ `ORDER BY`, а `category_id` является
 ее прямым производным (маппинг 1:1). Данные физически сгруппированы
 на диске по `category_id` — все строки с `category_id = 8` (Finance)
-лежат рядом в небольшом числе гранул.
-
-Bloom filter в такой ситуации максимально эффективен: он быстро
+лежат рядом в небольшом числе гранул. Bloom filter в такой ситуации максимально эффективен: он быстро
 отсекает гранулы, в которых нужного `category_id` заведомо нет.
 
 Если бы `category_id` был случайным (без корреляции с `ORDER BY`), 
@@ -207,10 +205,9 @@ ORDER BY total_amount DESC;
 | Bloom filter на `category_id` | Не используется | Отсекает гранулы до lookup |
 | Память | Хеш-таблица правой части | Только словарь (уже загружен) |
 
-Подробнее о том, как ускорить работу с помощью словарей, читайте в документации ClickHouse®.
-<https://clickhouse.com/docs/concepts/features/dictionaries#speeding-up-joins-using-a-dictionary>
+Подробнее о том, как ускорить работу с помощью словарей, читайте в [документации ClickHouse®](https://clickhouse.com/docs/concepts/features/dictionaries#speeding-up-joins-using-a-dictionary).
 
-### Практика: замеры
+### Практика: замеры производительности
 
 При сравнении производительности для более точных результатов можно сбрасывать
 кеши перед очередной итерацией:
