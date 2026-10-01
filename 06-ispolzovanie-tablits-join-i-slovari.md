@@ -137,6 +137,7 @@ LIFETIME(MIN 300 MAX 900);
 Рассмотрите два варианта использования и сравните количество обработанных строк.
 
 **Вариант A:** обычный `JOIN`
+
 ClickHouse строит хеш-таблицу из `merchant_category_dict_source`,
 затем проверяет каждую строку `financial_transactions`.
 Фильтр по `risk_tier` применяется после `JOIN`.
@@ -169,6 +170,7 @@ ORDER BY total_amount DESC;
 > <sub>6 rows in set. Elapsed: 1.256 sec. Processed 50.00 million rows, 650.02 MB (39.81 million rows/s., 517.53 MB/s.)<br>Peak memory usage: 55.57 MiB.</sub>
 
 **Вариант B:** `dictGet` — `Direct Join`
+
 ClickHouse делает lookup прямо в памяти для каждой строки,
 пережившей фильтр по `PRIMARY KEY`.
 Фильтр по `risk_tier` вычисляется inline через `dictGet`,
