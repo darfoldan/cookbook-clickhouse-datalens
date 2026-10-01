@@ -16,7 +16,7 @@
 
 {% cut "Условия замеров" %}
 
-Все строки вида `N rows in set. Elapsed...` и `Peak memory usage...` после блоков кода в этом файле получены на инстансе Yandex Managed Service for ClickHouse® минимальной конфигурации: 8 vCPU и 32 ГБ RAM, как рекомендовано в разделе [Managed Service for ClickHouse®](ДОБАВИТЬ ССЫЛКУ НА РЕЦЕПТ КУКБУКА НА ПРОДЕ). 
+Все строки вида `N rows in set. Elapsed...` и `Peak memory usage...` после блоков кода в этом файле получены на инстансе Yandex Managed Service for ClickHouse® минимальной конфигурации: 8 vCPU и 32 ГБ RAM, как рекомендовано в рецепте [Managed Service for ClickHouse®](ДОБАВИТЬ ССЫЛКУ НА РЕЦЕПТ КУКБУКА НА ПРОДЕ). 
 
 Это ориентировочные цифры, а не результат строгого бенчмарка:
 
