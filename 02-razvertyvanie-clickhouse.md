@@ -73,3 +73,7 @@
 
 Для этого рецепта стоит создать отдельную базу данных и 
 пользователя. В собственной установке или в режиме управления пользователями через SQL в Yandex Managed Service for ClickHouse® пользователю нужно выдать права: `GRANT SELECT, INSERT, ALTER TABLE, ALTER VIEW, CREATE TABLE, CREATE VIEW, CREATE DICTIONARY, DROP TABLE, DROP VIEW, TRUNCATE, dictGet, OPTIMIZE ON <имя базы>.* TO <имя пользователя>`. Если в Yandex Managed Service for ClickHouse® опция управления через SQL выключена, то настройка прав и ролей в интерфейсе будет более грубой. 
+
+## Итоги
+
+Дописать методисту
