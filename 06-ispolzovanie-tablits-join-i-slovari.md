@@ -282,8 +282,7 @@ SETTINGS use_query_condition_cache = 0;
 > <sub>6 rows in set. Elapsed: 1.246 sec. Processed 50.00 million rows, 600.02 MB (40.13 million rows/s., 481.55 MB/s.)<br>Peak memory usage: 41.28 MiB.</sub>
 
 ```sql
--- Кеши не сбрасывались перед замером — SYSTEM DROP CACHE недоступен
--- read-only-пользователю и является операцией инстанс-wide 
+-- Кеши не сбрасывались перед замером
 
 -- dictGet с bloom_filter
 SELECT
