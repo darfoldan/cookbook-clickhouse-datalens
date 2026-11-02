@@ -30,9 +30,9 @@
 -- transaction_id — монотонно возрастает, minmax эффективен
 -- Особенно полезен для запросов вида WHERE transaction_id BETWEEN X AND Y
 
--- Если вы проходили рецепт про проекции, сначала удалите конкурирующую проекцию
+-- Сначала удалите конкурирующую проекцию
 ALTER TABLE financial_transactions
-    DROP PROJECTION IF EXISTS idx_by_transaction_id;
+    DROP PROJECTION idx_by_transaction_id;
 -- и создайте индекс
 ALTER TABLE financial_transactions
     ADD INDEX idx_minmax_transaction_id transaction_id TYPE minmax GRANULARITY 1;
