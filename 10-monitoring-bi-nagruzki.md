@@ -1,6 +1,6 @@
 # Мониторинг BI-нагрузки
 
-В этом рецепте покажем, как отслеживать BI-нагрузку. Ключевое правило: оценивайте `total_cpu_sec`, то есть суммарное время всех выполнений одного типа запроса, а не `max_ms` отдельного запроса. Именно суммарная нагрузка показывает, что нагружает систему, когда BI-система присылает пачки запросов.
+В этом рецепте вы узнаете, как отслеживать BI-нагрузку. Ключевое правило: оценивайте `total_cpu_sec`, то есть суммарное время всех выполнений одного типа запроса, а не `max_ms` отдельного запроса. Именно суммарная нагрузка показывает, что нагружает систему, когда BI-система присылает пачки запросов.
 
 ```sql
 -- Текущие активные запросы прямо сейчас
@@ -19,12 +19,12 @@ GROUP BY user
 ORDER BY total_elapsed_sec DESC;
 ```
 
-> <sub>1 rows in set. Elapsed: 0.004 sec. Processed 1.00 rows, 3.38 KB (250.00 rows/s., 843.75 KB/s.)<br>Peak memory usage: 4.02 MiB.</sub>
+> <sub>1 row in set. Elapsed: 0.004 sec. Processed 1.00 rows, 3.38 KB (250.00 rows/s., 843.75 KB/s.)<br>Peak memory usage: 4.02 MiB.</sub>
 
 Если других активных сессий нет, в выводе будет только сам этот запрос: `system.processes` показывает срез на текущий момент, а не историю.
 
 ```sql
--- Каких ресурсов не хватает системе: CPU vs IO vs Memory
+-- Каких ресурсов не хватает системе: CPU, ввод-вывод, память
 -- Агрегированная статистика за последние N минут
 -- Показывает узкие места по типам запросов
 SELECT
@@ -56,7 +56,7 @@ GROUP BY minute
 ORDER BY minute DESC;
 ```
 
-> <sub>31 rows in set. Elapsed: 0.016 sec. Processed 272.38 thousand rows, 1.48 MB (17.02 million rows/s., 92.20 MB/s.)<br>Peak memory usage: 4.49 MiB.</sub>
+> <sub>31 row in set. Elapsed: 0.016 sec. Processed 272.38 thousand rows, 1.48 MB (17.02 million rows/s., 92.20 MB/s.)<br>Peak memory usage: 4.49 MiB.</sub>
 
 `hasAny()` ищет точное совпадение строки, а в `system.query_log` таблица записана с префиксом БД. Поэтому сравнивать нужно с полным именем `(currentDatabase() || '.financial_transactions')`, иначе `ft_queries` всегда будет `0`.
 
@@ -112,7 +112,7 @@ GROUP BY minute
 ORDER BY minute DESC;
 ```
 
-> <sub>121 rows in set. Elapsed: 0.013 sec. Processed 272.42 thousand rows, 1.84 MB (20.96 million rows/s., 141.25 MB/s.)<br>Peak memory usage: 4.41 MiB.</sub>
+> <sub>121 row in set. Elapsed: 0.013 sec. Processed 272.42 thousand rows, 1.84 MB (20.96 million rows/s., 141.25 MB/s.)<br>Peak memory usage: 4.41 MiB.</sub>
 
 На распределенном инстансе Managed Service for ClickHouse® в выводе видна устойчивая фоновая активность (десятки запросов в минуту), не связанная с примерами рецепта. Учитывайте это при интерпретации пиковой нагрузки: без фильтра по своему пользователю или по своей таблице вывод смешивает вашу нагрузку с чужой.
 
@@ -140,6 +140,31 @@ ORDER BY event_time DESC, metric ASC
 LIMIT 10;
 ```
 
+## Очистка тестовых структур
+
+```sql
+-- Шаг 1: удалите все материализованные представления (зависимые объекты первыми)
+DROP VIEW IF EXISTS financial_transactions_daily_summary_mv;
+DROP VIEW IF EXISTS financial_transactions_risk_by_country_mv;
+DROP VIEW IF EXISTS financial_transactions_risk_snapshots_mv;
+DROP VIEW IF EXISTS financial_transactions_status_report_mv;
+
+-- Шаг 2: удалите целевые таблицы
+DROP TABLE IF EXISTS financial_transactions_daily_summary;
+DROP TABLE IF EXISTS financial_transactions_risk_by_country;
+DROP TABLE IF EXISTS financial_transactions_risk_snapshots;
+DROP TABLE IF EXISTS financial_transactions_status_report;
+DROP TABLE IF EXISTS financial_transactions_analytics;
+DROP TABLE IF EXISTS financial_transactions_top_by_country;
+
+-- Шаг 3: удалите словари
+DROP DICTIONARY IF EXISTS merchant_category_dict;
+DROP TABLE IF EXISTS merchant_category_dict_source;
+
+-- Шаг 4: последней удалите исходную таблицу
+DROP TABLE IF EXISTS financial_transactions;
+```
+
 ## Итоги
 
 Вы разобрались, как отслеживать BI-нагрузку в ClickHouse®.
@@ -151,19 +176,6 @@ LIMIT 10;
 - Тяжелые запросы нужно искать по суммарному потреблению ресурсов, группируя похожие запросы по `normalized_query_hash`.
 - При анализе нагрузки фильтруйте данные по своему пользователю или таблице, чтобы не смешивать свою нагрузку с чужой.
 
-## Чек-лист подготовки данных для Yandex DataLens
-
-- Настройте `ORDER BY` и `PRIMARY KEY` под реальные паттерны фильтрации.
-- Если для управления данными нужно партиционирование, настройте его так, чтобы количество партиций не было избыточным.
-- Проверьте базовую таблицу на типовых BI-запросах и по результатам определите, нужна ли дополнительная оптимизация.
-- Если для запросов нужен другой порядок сортировки, заранее подготовленные агрегаты или дополнительный способ поиска по отдельным полям, используйте проекции.
-- Если нужно ускорить фильтрацию по колонкам с подходящим распределением значений и хорошей корреляцией с `ORDER BY`, используйте индексы пропуска данных.
-- Если для аналитики нужны данные из отдельных справочников, используйте `JOIN` или словари.
-- Если для аналитики нужны производные показатели, которые можно рассчитывать при запросе, используйте представления `VIEW`.
-- Если рассчитывать производные показатели при каждом обращении к `VIEW` слишком затратно, подготовьте результаты заранее с помощью материализованных представлений.
-- Если агрегаты нужно обновлять при каждом `INSERT`, используйте инкрементальное материализованное представление; если нужен полный пересчет по расписанию — обновляемое материализованное представление.
-- После подключения к Yandex DataLens проверьте реальную BI-нагрузку с учетом запросов от чартов и селекторов.
-
 ---
 
-Будем благодарны за обратную связь — это поможет нам улучшить рецепты. Опрос займет не более 3 минут. [Пройти опрос](https://forms.yandex.ru/surveys/13904409.de2ec464d13f519954a1fab7fa333720a58d7c10/)
+Будем благодарны за обратную связь — это поможет нам улучшить рецепты. Опрос займет не более трех минут. [Пройти опрос](https://forms.yandex.ru/surveys/13904409.de2ec464d13f519954a1fab7fa333720a58d7c10/)

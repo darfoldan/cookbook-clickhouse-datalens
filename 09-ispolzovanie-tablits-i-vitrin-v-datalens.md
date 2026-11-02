@@ -1,14 +1,20 @@
 # Использование таблиц и витрин в Yandex DataLens
 
-В этом рецепте в качестве сквозного примера мы взяли не саму таблицу `financial_transactions`, а представление `financial_transactions_analytics` из рецепта [Использование таблиц. Представления и оконные функции](07-ispolzovanie-tablits-predstavleniya-i-okonnye-funktsii.md). В нем уже посчитаны оконные функции — `amount_rank_in_segment`, `risk_percentile_in_country` и другие. Принцип оптимизации тот же, что и в упомянутом рецепте: BI-система получает уже готовые колонки и ничего не досчитывает сама.
+В этом рецепте в качестве сквозного примера используется не сама таблица `financial_transactions`, а представление `financial_transactions_analytics` из рецепта [Использование таблиц. Представления и оконные функции](07-ispolzovanie-tablits-predstavleniya-i-okonnye-funktsii.md). В нем уже посчитаны оконные функции — `amount_rank_in_segment`, `risk_percentile_in_country` и другие. Принцип оптимизации тот же, что и в упомянутом рецепте: BI-система получает уже готовые колонки и ничего не досчитывает сама.
 
 ## Практика: датасет и чарт на представлении с оконными функциями
 
-**1. Подключение.** Если подключение к ClickHouse® в Yandex DataLens еще не создано, создайте его: **Подключения → Создать подключение → ClickHouse®**. Для Yandex Managed Service for ClickHouse® указываются хост, порт HTTP-интерфейса, пользователь и пароль. Для BI-системы имеет смысл заводить отдельного пользователя с доступом только на чтение (см. рецепт [Развертывание ClickHouse®](02-razvertyvanie-clickhouse.md)). Уровень доступа SQL-запросов: **SQL на чтение**. После проверки соединения нажмите **Создать подключение**.
+### Шаг 1. Подключение
 
-**2. Создание датасета.** На странице подключения нажмите **Создать датасет**. В списке таблиц источника выберите не `financial_transactions`, а `financial_transactions_analytics`. Представления ClickHouse® видны в этом списке наравне с обычными таблицами, отдельно выбирать режим SQL не требуется. Переместите таблицу в рабочую область, перейдите на вкладку **Поля**, назовите и сохраните датасет.
+Если подключение к ClickHouse® в Yandex DataLens еще не создано, создайте его: **Подключения** → **Создать подключение** → **ClickHouse®**. Для Yandex Managed Service for ClickHouse® указываются хост, порт HTTP-интерфейса, пользователь и пароль. Для BI-системы имеет смысл заводить отдельного пользователя с доступом только на чтение (см. рецепт [Развертывание ClickHouse®](02-razvertyvanie-clickhouse.md)). Уровень доступа SQL-запросов: **SQL на чтение**. После проверки соединения нажмите **Создать подключение**.
 
-**3. Вычисляемое поле.** На вкладке **Поля** нажмите **Добавить поле**. Пример, который основан на уже посчитанных в представлении оконных функциях, — метка риск-сегмента по перцентилю `risk_percentile_in_country`:
+### Шаг 2. Создание датасета
+
+На странице подключения нажмите **Создать датасет**. В списке таблиц источника выберите не `financial_transactions`, а `financial_transactions_analytics`. Представления ClickHouse® видны в этом списке наравне с обычными таблицами, отдельно выбирать режим SQL не требуется. Переместите таблицу в рабочую область, перейдите на вкладку **Поля**, назовите и сохраните датасет.
+
+### Шаг 3. Вычисляемое поле
+
+На вкладке **Поля** нажмите **Добавить поле**. Пример, который основан на уже посчитанных в представлении оконных функциях, — метка риск-сегмента по перцентилю `risk_percentile_in_country`:
 
 ```
 IF([risk_percentile_in_country] > 0.9, 'Высокий риск (топ 10%)',
@@ -17,11 +23,13 @@ IF([risk_percentile_in_country] > 0.9, 'Высокий риск (топ 10%)',
 
 Назовите поле, например, `Риск-сегмент` и создайте его.
 
-**4. Чарт.** На странице датасета нажмите **Создать чарт**. Раскладка для примера: `merchant_category` — в **Измерения** (по оси X), `Риск-сегмент` — в **Измерения** как разбивку (легенда/цвет), количество транзакций `count()` по `transaction_id` — в **Показатели** (ось Y). Yandex DataLens при этом просто группирует и считает `count()` — сам перцентиль он не рассчитывает, вся тяжелая часть уже отработала в ClickHouse® при обращении к представлению.
+### Шаг 4. Чарт
+
+На странице датасета нажмите **Создать чарт**. Раскладка для примера: `merchant_category` — в **Измерения** (по оси X), `Риск-сегмент` — в **Измерения** как разбивку (легенда/цвет), количество транзакций `count()` по `transaction_id` — в **Показатели** (ось Y). Yandex DataLens при этом просто группирует и считает `count()` — сам перцентиль он не рассчитывает, вся тяжелая часть уже отработала в ClickHouse® при обращении к представлению.
 
 ## Параметры датасета и параметризованные представления в БД
 
-Yandex DataLens умеет передавать значения параметров датасета в SQL-подзапрос источника через плейсхолдер `{{имя_параметра}}`. Однако это работает, только если датасет описан произвольным SQL-запросом, а не выбором таблицы из списка, как в разделе «Практика: датасет и чарт на представлении с оконными функциями».
+Yandex DataLens умеет передавать значения параметров датасета в SQL-подзапрос источника через плейсхолдер `{{имя_параметра}}`. Однако это работает, только если датасет описан произвольным SQL-запросом, а не выбором таблицы из списка, как в разделе [Практика: датасет и чарт на представлении с оконными функциями](#практика-датасет-и-чарт-на-представлении-с-оконными-функциями).
 
 Общий порядок работы:
 
@@ -55,7 +63,7 @@ SELECT count()
 FROM financial_transactions_top_by_country(country = 'US', min_risk_percentile = 0.9);
 ```
 
-> <sub>1 rows in set. Elapsed: 3.662 sec. Processed 50.00 million rows, 700.02 MB (13.65 million rows/s., 191.16 MB/s.)<br>Peak memory usage: 545.29 MiB.</sub>
+> <sub>1 row in set. Elapsed: 3.662 sec. Processed 50.00 million rows, 700.02 MB (13.65 million rows/s., 191.16 MB/s.)<br>Peak memory usage: 545.29 MiB.</sub>
 
 Ниже пример того, как выглядит источник в Yandex DataLens. Кавычки для `country` нужны явно — `{{...}}`, в Yandex DataLens это текстовая подстановка, а не параметр с типом:
 
@@ -65,31 +73,6 @@ FROM financial_transactions_top_by_country(
     country = '{{country_param}}',
     min_risk_percentile = {{min_risk_percentile_param}}
 );
-```
-
-## Очистка тестовых структур
-
-```sql
--- Шаг 1: Удалить все материализованные представления (зависимые объекты первыми)
-DROP VIEW IF EXISTS financial_transactions_daily_summary_mv;
-DROP VIEW IF EXISTS financial_transactions_risk_by_country_mv;
-DROP VIEW IF EXISTS financial_transactions_risk_snapshots_mv;
-DROP VIEW IF EXISTS financial_transactions_status_report_mv;
-
--- Шаг 2: Удалить таблицы-получатели (target tables)
-DROP TABLE IF EXISTS financial_transactions_daily_summary;
-DROP TABLE IF EXISTS financial_transactions_risk_by_country;
-DROP TABLE IF EXISTS financial_transactions_risk_snapshots;
-DROP TABLE IF EXISTS financial_transactions_status_report;
-DROP TABLE IF EXISTS financial_transactions_analytics;
-DROP TABLE IF EXISTS financial_transactions_top_by_country;
-
--- Шаг 3: Удалить словари
-DROP DICTIONARY IF EXISTS merchant_category_dict;
-DROP TABLE IF EXISTS merchant_category_dict_source;
-
--- Шаг 4: Удалить исходную таблицу (source table) последней
-DROP TABLE IF EXISTS financial_transactions;
 ```
 
 ## Итоги
