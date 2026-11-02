@@ -276,7 +276,7 @@ WHERE transaction_id = 12345678;
 -- ключ + _part_offset, но с помощью ADD PROJECTION можно явно перечислить
 -- любой набор колонок (необязательно SELECT * целиком);
 -- сначала удалить нерабочую проекцию, она занимает место.
-ALTER TABLE financial_transactions DROP PROJECTION IF EXISTS idx_by_transaction_id;
+ALTER TABLE financial_transactions DROP PROJECTION idx_by_transaction_id;
 ALTER TABLE financial_transactions
 ADD PROJECTION idx_by_transaction_id
 (
