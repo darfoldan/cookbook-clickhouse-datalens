@@ -193,8 +193,7 @@ FROM financial_transactions_analytics
 ORDER BY currency;
 ```
 
-> <sub>7 rows in set. Elapsed: 0.007 sec. Processed 15.15 thousand rows, 33.44 KB (2.30 million rows/s., 5.08 MB/s.)
-Peak memory usage: 547.35 KiB.</sub>
+> <sub>7 rows in set. Elapsed: 0.007 sec. Processed 15.15 thousand rows, 33.44 KB (2.30 million rows/s., 5.08 MB/s.)<br>Peak memory usage: 547.35 KiB.</sub>
 
 ```sql
 EXPLAIN indexes = 1
@@ -202,16 +201,17 @@ SELECT DISTINCT currency
 FROM financial_transactions_analytics
 ORDER BY currency;
 ```
-Сравните с отключенной проекцией, чтобы увидеть разницу
-```
+
+Сравните с отключенной проекцией, чтобы увидеть разницу:
+
+```sql
 SELECT DISTINCT currency
 FROM financial_transactions_analytics
 ORDER BY currency
 SETTINGS optimize_use_projections = 0;
 ```
 
-> <sub>7 rows in set. Elapsed: 0.031 sec. Processed 50.00 million rows, 76.48 MB (1.62 billion rows/s., 2.47 GB/s.)
-Peak memory usage: 4.00 MiB.</sub>
+> <sub>7 rows in set. Elapsed: 0.031 sec. Processed 50.00 million rows, 76.48 MB (1.62 billion rows/s., 2.47 GB/s.)<br>Peak memory usage: 4.00 MiB.</sub>
 
 ```sql
 EXPLAIN indexes = 1
@@ -221,13 +221,7 @@ ORDER BY currency
 SETTINGS optimize_use_projections = 0;
 ```
 
-> <sub>7 rows in set. Elapsed: 0.013 sec. Processed 47.38 thousand rows, 57.19 KB (3.64 million rows/s., 4.40 MB/s.)<br>Peak memory usage: 4.61 MiB.</sub>
-
 `EXPLAIN indexes = 1` подтверждает: `ReadFromMergeTree (prj_agg_by_category_country)`, `Granules: 116/6149` — читается только проекция, а не 50 млн строк базовой таблицы. В 1000+ раз меньше прочитанных строк и в три раза быстрее по времени, хотя запрос и так короткий.
-`EXPLAIN indexes = 1` подтверждает: `ReadFromMergeTree (prj_agg_by_category_country)`,
-`Granules: 116/6149` — читается только проекция, а не 50 млн строк базовой
-таблицы. В 1000+ раз меньше прочитанных строк и в три раза быстрее по
-времени, хотя запрос и так короткий.
 
 ```sql
 -- Проверьте через query_log, какая проекция была использована
