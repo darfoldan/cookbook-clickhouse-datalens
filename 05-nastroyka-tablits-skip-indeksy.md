@@ -32,7 +32,7 @@
 
 -- Сначала удалите конкурирующую проекцию
 ALTER TABLE financial_transactions
-    DROP PROJECTION idx_by_transaction_id;
+    DROP PROJECTION IF EXISTS idx_by_transaction_id;
 -- и создайте индекс
 ALTER TABLE financial_transactions
     ADD INDEX idx_minmax_transaction_id transaction_id TYPE minmax GRANULARITY 1;
